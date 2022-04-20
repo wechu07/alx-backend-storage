@@ -1,4 +1,5 @@
-# Learning Objectives
+#  MySQL advanced
+## Learning Objectives
 
  - How to create tables with constraints
  - How to optimize queries by adding indexes
