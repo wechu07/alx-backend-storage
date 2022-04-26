@@ -1,36 +1,42 @@
 #!/usr/bin/env python3
-"""
-a Python script that provides some stats about Nginx logs stored in MongoDB
-"""
+""" Log stats """
 from pymongo import MongoClient
 
 
 if __name__ == "__main__":
     client = MongoClient('mongodb://127.0.0.1:27017')
-    nginx_collection = client.logs.nginx
-    all = list(nginx_collection.find())
-    ips = {}
-    x = len(all)
-    print(x, "logs\nMethods:")
+    db_nginx = client.logs.nginx
     methods = ["GET", "POST", "PUT", "PATCH", "DELETE"]
-    for m in methods:
-        print(
-            "\tmethod {}: {}".format(
-                m, len(list(nginx_collection.find({"method": m})))
-                )
-            )
-    print(
-        "{} status check".format(
-            len(list(
-                nginx_collection.find({"method": "GET", "path": "/status"})
-                ))
-            )
-        )
-    for log in all:
-        if log.get('ip') and log.get('ip') in ips:
-            ips[log.get('ip')] += 1
-        elif log.get('ip'):
-            ips[log.get('ip')] = 1
+
+    count_logs = db_nginx.count_documents({})
+    print(f'{count_logs} logs')
+
+    print('Methods:')
+    for method in methods:
+        count_method = db_nginx.count_documents({'method': method})
+        print(f'\tmethod {method}: {count_method}')
+
+    check = db_nginx.count_documents(
+        {"method": "GET", "path": "/status"}
+    )
+
+    print(f'{check} status check')
     print("IPs:")
-    for ip in sorted(ips, key=ips.get, reverse=True)[:10]:
-        print("\t{}: {}".format(ip, ips[ip]))
+    ips = db_nginx.aggregate([
+        {"$group":
+            {
+                "_id": "$ip",
+                "count": {"$sum": 1}
+            }
+        },
+        {"$sort": {"count": -1}},
+        {"$limit": 10},
+        {"$project": {
+            "_id": 0,
+            "ip": "$_id",
+            "count": 1
+        }}
+    ])
+
+    for ip in ips:
+        print(f"\t{ip.get('ip')}: {ip.get('count')}")
